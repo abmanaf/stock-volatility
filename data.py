@@ -40,10 +40,10 @@ class AlphaVantageAPI:
             f"apikey={self.__api_key}"
         )
     
-        # Send request to API (8.1.6)
+        # Send request to API
         response = requests.get(url=url)
     
-        # Extract JSON data from response (8.1.10)
+        # Extract JSON data from response
         response_data = response.json()
         
         # Check if there's been an error
@@ -52,17 +52,17 @@ class AlphaVantageAPI:
                 f"Invalid api call, check the ticker '{ticker}' if it's correct"
             )
         
-        # Read data into DataFrame (8.1.12 & 8.1.13)
+        # Read data into DataFrame
         stock_data = response_data["Time Series (Daily)"]
         df = pd.DataFrame.from_dict(stock_data, orient="index", dtype=float)
     
     
-        # Convert index to `DatetimeIndex` named "date" (8.1.14)
+        # Convert index to `DatetimeIndex` named "date"
     
         df.index = pd.to_datetime(df.index)
         df.index.name = "date"
     
-        # Remove numbering from columns (8.1.15)
+        # Remove numbering from columns
         df.columns = [c.split(" ")[1] for c in df.columns]
         # Return DataFrame
         return df

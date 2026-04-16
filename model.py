@@ -69,7 +69,6 @@ class GarchModel:
         # Clean data, attach to class as `data` attribute
         df.sort_index(ascending=True, inplace=True)
         df['return'] = df['close'].pct_change() * 100
-        # Return returns 
         self.data = df['return'].dropna()
 
     def fit(self, p, q):

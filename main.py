@@ -50,11 +50,9 @@ def build_model(ticker, use_new_data):
     return model
 
 
-# Task 8.4.9
 app = FastAPI()
 
 
-# Task 8.4.11
 # `"/hello" path with 200 status code
 @app.get("/hello", status_code=200)
 def hello():
@@ -62,7 +60,7 @@ def hello():
     return {"message":"Hello world"}
 
 
-# Task 8.4.16, `"/fit" path, 200 status code
+# `"/fit" path, 200 status code
 @app.post("/fit", response_model=FitOut)
 def fit_model(request: FitIn):
     """Fit model, return confirmation message.
@@ -96,18 +94,15 @@ def fit_model(request: FitIn):
         # Success response
         response["success"] = True
     
-        # ✅ Updated message with AIC & BIC
+        # Updated message with AIC & BIC
         response["message"] = (
             f"Trained and saved '{filepath}'. "
             f"Metrics: AIC {model.aic}, BIC {model.bic}."
         )
 
-    # Create except block
     except Exception as e:
-        # Add `"success"` key to `response`
         response["success"] = False
 
-        # Add `"message"` key to `response` with error message
         response["message"] = str(e)
 
     # Return response
@@ -115,7 +110,7 @@ def fit_model(request: FitIn):
     return response
 
 
-# Task 8.4.19 `"/predict" path, 200 status code
+# `"/predict" path, 200 status code
 @app.post('/predict', status_code = 200, response_model=PredictOut)
 def get_prediction(request: PredictIn):
     # Create `response` dictionary from `request`
@@ -129,25 +124,18 @@ def get_prediction(request: PredictIn):
         # Generate prediction
         prediction = model.predict_volatility(horizon=request.n_days)
 
-        # Add `"success"` key to `response`
         response["success"] = True
 
-        # Add `"forecast"` key to `response`
         response["forecast"] = prediction
 
-        # Add `"message"` key to `response`
         response["message"] = ""
 
     # Create except block
     except Exception as e:
-        # Add `"success"` key to `response`
         response["success"] = False
 
-        # Add `"forecast"` key to `response`
         response["forecast"] = {}
 
-        #  Add `"message"` key to `response`
         response["message"] = str(e)
 
-    # Return response
     return response
