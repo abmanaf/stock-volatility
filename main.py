@@ -3,11 +3,24 @@ import sqlite3
 from config import settings
 from data import SQLRepository
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from model import GarchModel
 from pydantic import BaseModel
 
 
-# Task 8.4.14, `FitIn` class
+app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:3001"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+#`FitIn` class
 class FitIn(BaseModel):
     ticker: str
     use_new_data: bool
@@ -16,41 +29,30 @@ class FitIn(BaseModel):
     q: int
 
 
-# Task 8.4.14, `FitOut` class
+#`FitOut` class
 class FitOut(FitIn):
     success: bool
     message: str
 
 
-# Task 8.4.18, `PredictIn` class
+#`PredictIn` class
 class PredictIn(BaseModel):
     ticker: str
     n_days: int
 
 
-# Task 8.4.18, `PredictOut` class
+# `PredictOut` class
 class PredictOut(PredictIn):
     success: bool
     forecast: dict
     message: str
 
 
-# Task 8.4.15
 def build_model(ticker, use_new_data):
-    # Create DB connection
     connection = sqlite3.connect(settings.db_name, check_same_thread=False)
-
-    # Create `SQLRepository`
     repo = SQLRepository(connection=connection)
-
-    # Create model
     model = GarchModel(ticker=ticker, use_new_data=use_new_data, repo=repo)
-
-    # Return model
     return model
-
-
-app = FastAPI()
 
 
 # `"/hello" path with 200 status code
