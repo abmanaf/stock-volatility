@@ -1,11 +1,13 @@
 import os
 from glob import glob
+import warnings
 
 import joblib
 import pandas as pd
 from arch import arch_model
 from config import settings
 from data import AlphaVantageAPI, SQLRepository
+from statsmodels.tsa.arima.model import ARIMA
 
 
 class GarchModel:
@@ -160,9 +162,12 @@ class GarchModel:
         """
         # Create timestamp in ISO format
         timestamp = pd.Timestamp.now().isoformat().replace(":", "-")
-        filepath = os.path.join(self.model_directory, f"{timestamp}_{self.ticker}.pkl")
+        filepath = os.path.join(self.model_directory, f"{timestamp}_{self.ticker}_garch.pkl")
 
         joblib.dump(self.model, filepath)
+
+        arima_path = os.path.join(self.model_directory, f"{timestamp}_{self.ticker}_arima.pkl")
+        joblib.dump(self.arima_model, arima_path)
         # Return filepath
         return filepath
 
@@ -171,15 +176,74 @@ class GarchModel:
         attach to `self.model` attribute.
 
         """
-        # Create pattern for glob search
-        pattern = os.path.join(self.model_directory, f"*{self.ticker}.pkl")
-        # Use glob to get most recent model, handle errors
+        garch_pattern = os.path.join(self.model_directory, f"*{self.ticker}.pkl")
+        arima_pattern = os.path.join(self.model_directory, f"*{self.ticker}_arima.pkl")
+        
         try:
-            model_path = sorted(glob(pattern))[-1]
-
-        # Handle possible `IndexError`
+            garch_files = [f for f in glob(garch_pattern) if "_arima" not in f]
+            arima_files = glob(arima_pattern)
+            
+            if not garch_files:
+                raise Exception(f"No GARCH model trained for '{self.ticker}'.")
+            if not arima_files:
+                raise Exception(f"No ARIMA model trained for '{self.ticker}'.")
+                
+            self.model_path = sorted(garch_files)[-1]
+            self.arima_path = sorted(arima_files)[-1]
         except IndexError:
             raise Exception(f"No model trained for '{self.ticker}'.")
 
-        # Load model and attach to `self.model`
-        self.model = joblib.load(model_path)
+        self.model = joblib.load(self.model_path)
+        self.arima_model = joblib.load(self.arima_path)
+        
+        # Reload data for date indexing in predictions
+        if self.repo:
+            df = self.repo.read_table(table_name=self.ticker, limit=100)
+            df.sort_index(ascending=True, inplace=True)
+            df['return'] = df['close'].pct_change() * 100
+            self.data = df['return'].dropna()
+    
+    def fit_arima(self, order=(1, 0, 1)):
+        """Fit an ARIMA model to `self.data` (returns series).
+
+        Parameters
+        ----------
+        order : tuple, optional
+            The (p, d, q) order of the ARIMA model. By default (1, 0, 1).
+            - p: autoregressive lags
+            - d: differencing order (0 since returns are usually stationary)
+            - q: moving average lags
+
+        Returns
+        -------
+        None
+        """
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.arima_model = ARIMA(self.data, order=order).fit()
+
+        self.arima_aic = self.arima_model.aic
+        self.arima_bic = self.arima_model.bic
+
+    def predict_returns(self, horizon):
+        """Predict returns using `self.arima_model`.
+
+        Parameters
+        ----------
+        horizon : int
+            Number of business days to forecast.
+
+        Returns
+        -------
+        dict
+            Forecast of returns. Each key is a date in ISO 8601 format.
+            Each value is the predicted return.
+        """
+        forecast = self.arima_model.forecast(steps=horizon)
+
+        # Build business-day date index starting from the day after last observation
+        start = self.data.index[-1] + pd.DateOffset(days=1)
+        prediction_dates = pd.bdate_range(start=start, periods=horizon)
+        prediction_index = [d.isoformat() for d in prediction_dates]
+
+        return pd.Series(forecast.values, index=prediction_index).to_dict()
